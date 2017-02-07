@@ -5,29 +5,28 @@
 #include <unistd.h>
 #include <ctype.h>
 
-#define FREEFILE if(i_flag)free(input_file);if(o_flag)free(output_file);if(c_flag)free(count_file);
-
 #define TRUE 1
 #define FALSE 0
 
-unsigned int num_int = 100;
-unsigned int min_int = 1;
-unsigned int max_int = 255;
-unsigned long int seed = 0;
-char* input_file = NULL;
-char* output_file = NULL;
-char* count_file = NULL;
+unsigned short int N_flag;
+unsigned short int M_flag;
+unsigned short int p_flag;
+unsigned short int s_flag;
 
-unsigned short int n_flag = FALSE;
-unsigned short int m_flag = FALSE;
-unsigned short int M_flag = FALSE;
-unsigned short int s_flag = FALSE;
-unsigned short int i_flag = FALSE;
-unsigned short int o_flag = FALSE;
-unsigned short int c_flag = FALSE;
+unsigned int num_lvl;
+unsigned int num_chd;
+unsigned int slp_tim;
 
 int initializeOptions(int argc, char** argv, char* option_string){
-   
+  N_flag = FALSE;
+  M_flag = FALSE;
+  p_flag = FALSE;
+  s_flag = FALSE;
+
+  num_lvl = 0;
+  num_chd = 1;
+  slp_tim = 1;
+  
   int opt = getopt(argc, argv, option_string); 
   opterr = 1;
 
@@ -35,49 +34,24 @@ int initializeOptions(int argc, char** argv, char* option_string){
     switch(opt){
     case 'u':
       {
-	fprintf(stderr, "prog1sorter: Sorts integers in ascending order\nOptions: [-u] [-n <num-integers>] [-m <min-int>] [-M <max-int>] [-i <input-file-name>] [-o <output-file-name>] [-c <count-file-name>]\n");
+	fprintf(stderr, "prog2tree [-u] [-N <num-levels>] [-M <num-children>] [-p] [-s <sleep-time>]\n");
 	exit(0);
 	break;
       }
-    case 'n':
+    case 'N':
       {
-	if(n_flag){
+	if(N_flag){
 	  fprintf(stderr, "Duplicate %c option. Ignoring\n", optopt);
 	  break;
 	}
-	n_flag = TRUE;
-	num_int = 0;
-	for(const char *c = optarg; isdigit(*c) != 0; c++){
-	  num_int *= 10;
-	  num_int += ((*c) - 48);
-	}
-	if(num_int > 1000000){
-	  fprintf(stderr, "The -n option should have an integer argument that is greater than 0 and less than 1000000\n");
-	  FREEFILE;
-	  return 1;
-	}
-	break;
-      }
-    case 'm':
-      {
-	if(m_flag){
-	  fprintf(stderr, "Duplicate %c option. Ignoring\n", optopt);
-	  break;
-	}
-	m_flag = TRUE;
-	min_int = 0;
-	for(const char *c = optarg; isdigit(*c) != 0; c++){
-	  min_int *= 10;
-	  min_int += ((*c) - 48);
-	}
-	if(min_int < 1){
-	  fprintf(stderr, "The -m option should have an integer argument that is greater than 0\n");
-	  FREEFILE;
-	  return 1;
-	}else if(M_flag && min_int > max_int){
-	  fprintf(stderr, "The -M argument should have an integer argument that is greater than the -m argument\n");
-	  FREEFILE;
-	  return 1;
+	N_flag = TRUE;
+	num_lvl = atoi(optarg);
+
+	if(num_lvl > 4){
+	  fprintf(stderr, "Error: Number levels should be an integer between 0 and 4 inclusive.\n");
+	  exit(1);
+	}else if(num_lvl > 1){
+	  *optarg -= 1;
 	}
 	break;
       }
@@ -88,82 +62,24 @@ int initializeOptions(int argc, char** argv, char* option_string){
 	  break;
 	}
 	M_flag = TRUE;
-	max_int = 0;
-	for(const char *c = optarg; isdigit(*c) != 0; c++){
-	  max_int *= 10;
-	  max_int += ((*c) - 48);
-	}
-	if(max_int >= 1000000){
-	  fprintf(stderr, "The -M option should have an integer argument that is greater than 0 and less than 1000000\n");
-	  FREEFILE;
-	  return 1;
-	}else if(max_int < min_int){
-	  fprintf(stderr, "The -M argument should have an integer argument that is greater than the -m argument\n");
-	  FREEFILE;
-	  return 1;
-	}
-	break;
-      }
-    case 'i':
-      {
-	if(i_flag){
-	  fprintf(stderr, "Duplicate %c option. Ignoring\n", optopt);
-	  break;
-	}
-	if(optarg == NULL){
-	  fprintf(stderr,"There must be a path for the input file after -i\n");
-	  FREEFILE;
-	  return 1;
-	}
-	if(access(optarg, F_OK) == -1){
-	  fprintf(stderr,"The file %s does not exist\n", optarg);
-	  FREEFILE;
-	  return 1;
-	}
-	input_file = malloc(sizeof(char) * strlen(optarg));
-	input_file = strdup(optarg);
-	
-	i_flag = TRUE;
-	break;
-      }
-    case 'o':
-      {
-	if(o_flag){
-	  fprintf(stderr, "Duplicate %c option. Ignoring\n", optopt);
-	  break;
-	}
-	if(optarg == NULL){
-	  fprintf(stderr,"There must be a path for the output file after -o\n");
-	  FREEFILE;
-	  return 1;
-	}
-	/*
-	  if(access(optarg, F_OK) == -1){
-	  fprintf(stderr,"The file %s does not exist\n", optarg);
-	  FREEFILE;
+	num_chd = atoi(optarg);
+	if(num_chd > 3 || num_chd == 0){
+	  fprintf(stderr, "Error: Number of children should be an integer between 1 and 3 inclusive.\n");
 	  exit(1);
-	  }
-	*/
-	
-	output_file = malloc(sizeof(char) * strlen(optarg));
-	output_file = strdup(optarg);
-	o_flag = TRUE;
+	}
 	break;
       }
-    case 'c':
+    case 'p':
       {
-	if(c_flag){
+	if(p_flag){
 	  fprintf(stderr, "Duplicate %c option. Ignoring\n", optopt);
 	  break;
 	}
-	if(optarg == NULL){
-	  fprintf(stderr,"There must be a path for the count file after -c\n");
-	  FREEFILE;
-	  return 1;
+	if(s_flag){
+	  fprintf(stderr, "Error: p option and s option cannot be used together\n");
+	  break;
 	}
-	count_file = malloc(sizeof(char) * strlen(optarg));
-	count_file = strdup(optarg);
-	c_flag = TRUE;
+	p_flag = TRUE;
 	break;
       }
     case 's':
@@ -172,36 +88,33 @@ int initializeOptions(int argc, char** argv, char* option_string){
 	  fprintf(stderr, "Duplicate %c option. Ignoring\n", optopt);
 	  break;
 	}
-	s_flag = TRUE;
-	for(const char *c = optarg; isdigit(*c) != 0; c++){
-	  seed *= 10;
-	  seed += ((*c) - 48);
+	if(p_flag){
+	  fprintf(stderr, "Error: p option and s option cannot be used together\n");
+	  exit(1);
+	  break;
 	}
-	
-	srand(seed);
+	s_flag = TRUE;
+	slp_tim = atoi(optarg);
 	break;
       }
     case '?':
       //Getopt already returns an informative string
       fprintf(stderr, "Unrecognized option: -%c\n", optopt);
-      FREEFILE;
       return 1;
      
     case ':':
       //Getopt already returns an informative string
       //fprintf(stderr, "Option -%c requires an argument\n", optopt);
       fprintf(stderr, "Cannot pass in values through the command line\n");
-      FREEFILE;
       return 1;
     default:
       {
 	fprintf(stderr, "Cannot pass in values through the command line\n");
-	FREEFILE;
 	return 1;
 	break;
       }
     }
-    opt = getopt(argc, argv, "un:m:M:i:o:c:s:");
+    opt = getopt(argc, argv, option_string);
   }
   return 0;
 }
